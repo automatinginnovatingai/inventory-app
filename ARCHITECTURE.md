@@ -1,61 +1,91 @@
-# Inventory App – Architecture Overview
+# Inventory App – Architecture Overview  
+Version: 2.0.0
 
 ## Overview
-Inventory App is a closed‑source Windows `.exe` application built for offline operation, secure license enforcement, and automated inventory control. It provides a fast, local inventory and warehouse management system designed to work independently of any specific trade, with support for multi‑warehouse stock, transfers, and transaction history.
+The Automating Innovating AI **Inventory App** is a closed‑source Windows `.exe` designed for secure, offline‑capable inventory and warehouse management. It includes automated license enforcement, SQL‑based data storage, multi‑warehouse tracking, purchase orders, reporting, and full audit‑ready transaction history.
 
-The application supports both SQL Server Express and Full SQL Server, selected during installation.
+The application supports **SQL Server Express** and **Full SQL Server**, selected during installation.  
+All operations occur locally after initial license activation.
 
 ---
 
 # Architecture
 
-## Database selection (installer‑driven)
+## Database Selection (Installer‑Driven)
 During installation, the user selects one of two supported database modes:
 
 ### 1. SQL Server Express (local database – recommended for 1–5 users)
 - Installer automatically installs and configures SQL Server Express  
-- Ideal for single‑machine setups or small office networks  
-- No licensing cost  
+- Ideal for single‑machine or small office setups  
+- Zero licensing cost  
 
 ### 2. Full SQL Server (Standard/Enterprise)
-- User connects to an existing SQL Server instance  
+- Connects to an existing SQL Server instance  
 - Supports multi‑user environments and IT‑managed deployments  
 - Designed for medium to large companies  
 
-The installer writes a registry flag (`UseSQLExpress`) that determines which connection setup page the application loads on first launch.
+The installer writes a registry flag (`UseSQLExpress`) that determines which SQL connection page loads on first launch.
 
 ---
 
-## License enforcement flow
-User Launch → License Prompt → Gumroad API Validation → Local Unlock
+## License Enforcement Flow
+**User Launch → License Prompt → Gumroad API Validation → Local Unlock**
 
 - User enters their Gumroad license key on first launch  
-- Key is validated through Gumroad’s `/v2/licenses/verify` endpoint  
+- Key is validated via Gumroad’s `/v2/licenses/verify` endpoint  
 - Valid keys unlock the application and store the license state locally  
 - Periodic revalidation may occur (e.g., every 7 days)  
-- License tier determines access to Basic, Pro, or Enterprise inventory features  
+- License tier controls access to Basic, Pro, or Enterprise features  
+
+After activation, the app operates fully offline.
 
 ---
 
-## Local session context
-- All data is stored in SQL Server Express or Full SQL Server  
+## Role‑Based Access Control (RBAC)
+The Inventory App includes a clean, centralized RBAC system:
+
+### **Admin‑Only Registration**
+- Only admins can register accounts  
+- No employee/installer self‑registration  
+- Prevents unauthorized access and maintains data integrity  
+
+### **Global Admin**
+- Full system access  
+- Can configure warehouses, materials, suppliers, and system settings  
+- Can manage other admins (if enabled by license tier)  
+
+### **Local Admin**
+- Restricted to operational modules  
+- Cannot create companies or modify global system settings  
+- Redirected to login after registration (no auto‑session creation)  
+
+### **RBAC Enforcement**
+- Centralized in `Admin_Interface.py`  
+- UI dynamically adapts based on role  
+- Feature access is validated before loading any module  
+- Prevents unauthorized navigation or direct file access  
+
+---
+
+## Local Session Context
+- All data stored in SQL Server Express or Full SQL Server  
 - No cloud sync, Redis, or external session store  
 - Secure login using salted + hashed admin credentials  
 - Fully offline operation after initial license activation  
 
 ---
 
-## Data transfer between computers
-The app includes a built‑in SQL migration tool for moving data to a new machine:
+## Data Transfer Between Computers
+The app includes a built‑in SQL migration tool:
 
-- Creates a `.bak` backup file from the old computer  
-- Restores the `.bak` file on the new computer  
+- Generates a `.bak` backup file from the old machine  
+- Restores the `.bak` file on the new machine  
 - Works for both SQL Express and Full SQL Server  
-- Suitable for machine upgrades or office migrations  
+- Ideal for machine upgrades or office migrations  
 
 ---
 
-## SQL connection pages
+## SQL Connection Pages
 The application routes users to the correct connection setup page based on installer selection:
 
 - `sql_connection_page.py` – SQL Express  
@@ -69,21 +99,70 @@ Both pages support:
 
 ---
 
-## Core inventory & warehouse workflow
-Admin Login → Material Setup → Warehouse Setup → Inventory Transactions → Reporting
+## Core Inventory & Warehouse Workflow
+**Admin Login → Material Setup → Warehouse Setup → Inventory Transactions → Reporting**
 
-- Admin defines materials in a universal `Material_Info` schema (code, name, unit, cost, etc.)  
-- Warehouses are configured in a dedicated `Warehouse` table  
-- Stock levels are tracked per warehouse via `Warehouse_Inventory`  
-- All movements (receipts, issues, adjustments, transfers) are logged in `Inventory_Transactions` and `Warehouse_Transfers`  
-- Inventory can be filtered and reported by material, warehouse, date range, and transaction type  
+### Material Management
+- Universal `Material_Info` schema  
+- Supports SKUs, units, cost, categories, and reorder points  
+- Supplier linking and preferred vendor tracking  
+
+### Warehouse Management
+- Dedicated `Warehouse` table  
+- Multi‑warehouse support  
+- Per‑warehouse stock tracking via `Warehouse_Inventory`  
+
+### Inventory Transactions
+- All movements logged in `Inventory_Transactions`  
+- Transfers logged in `Warehouse_Transfers`  
+- Includes reason codes, references, supplier info, timestamps  
+- Fully audit‑ready  
+
+### Purchase Orders
+- PO lifecycle: Pending → Ordered → Received → Closed  
+- Receiving updates stock automatically  
+- Supplier‑linked PO workflow  
+
+### Reporting
+- Excel and PDF reports  
+- Inventory summaries, valuation, and transaction logs  
+- Customizable filenames  
+- Print‑ready formatting  
 
 ---
 
-## File storage & export
-All exports are stored locally under a user‑selectable root folder, for example:
+## UI Architecture
+- Dashboard‑driven navigation  
+- Submenus grouped by functional modules  
+- RBAC‑aware UI rendering  
+- Multi‑resolution `.ico` (256 → 16 px) for crisp display across Windows views  
+
+---
+
+## File Storage & Export
+All exports are stored locally under a user‑selectable root folder:
 
 - `\Inventory_Exports\Reports\` – inventory, valuation, and transaction reports  
-- `\Inventory_Exports\Backups\` – generated `.bak` files and optional CSV/Excel dumps  
+- `\Inventory_Exports\Backups\` – `.bak` files and optional CSV/Excel dumps  
 
-Paths are configurable from the admin settings screen and are never synced to any external service.
+Paths are configurable from the admin settings screen and never synced externally.
+
+---
+
+## Offline‑First Design
+- All operations occur locally  
+- SQL Server handles all data persistence  
+- No external dependencies after license activation  
+- Ideal for field‑service, warehouse, and low‑connectivity environments  
+
+---
+
+## Auto‑Update System
+- Checks for new versions on launch  
+- Downloads and installs updates when available  
+- Ensures clients always run the latest stable release  
+
+---
+
+## Summary
+The Inventory App is engineered for reliability, offline operation, secure admin workflows, and transparent audit‑ready inventory control. With SQL‑based storage, RBAC enforcement, multi‑warehouse support, and a modernized UI, it delivers a professional‑grade inventory system suitable for small businesses and enterprise environments alike.
