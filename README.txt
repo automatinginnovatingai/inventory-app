@@ -82,7 +82,7 @@ This app requires a valid **Gumroad license key**.
 
 ## Getting Started
 1. Launch the app using the Inventory App icon.
-2. Click **Admin Registration** to create your admin account.
+2. User will be redirected to payment plan page via Stripe
 3. After registering, click **Admin Login** to sign in.
 4. Navigate to the **Inventory Dashboard**.
 5. Begin adding materials, warehouses, and managing stock levels.
